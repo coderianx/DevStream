@@ -1,0 +1,29 @@
+# Environment
+.env
+*.env
+!.env.example
+
+# Binaries
+backend/devstream
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test / coverage
+*.test
+*.out
+coverage.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
