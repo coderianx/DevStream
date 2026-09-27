@@ -57,13 +57,37 @@ func CreateTables() error {
 		updated_at    TIMESTAMP NOT NULL DEFAULT now()
 	);
 
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT NOT NULL DEFAULT '';
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS banner_url TEXT NOT NULL DEFAULT '';
+
 	CREATE TABLE IF NOT EXISTS refresh_tokens (
 		id         BIGSERIAL PRIMARY KEY,
 		user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		token_hash TEXT NOT NULL UNIQUE,
 		expires_at TIMESTAMP NOT NULL,
 		created_at TIMESTAMP NOT NULL DEFAULT now()
-	);`
+	);
+
+	CREATE TABLE IF NOT EXISTS posts (
+		id         BIGSERIAL PRIMARY KEY,
+		user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		username   TEXT NOT NULL,
+		title      TEXT NOT NULL,
+		content    TEXT NOT NULL,
+		created_at TIMESTAMP NOT NULL DEFAULT now()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts (user_id);
+
+	CREATE TABLE IF NOT EXISTS follows (
+		follower_id  BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		following_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		created_at   TIMESTAMP NOT NULL DEFAULT now(),
+		PRIMARY KEY (follower_id, following_id),
+		CHECK (follower_id <> following_id)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_follows_following_id ON follows (following_id);`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

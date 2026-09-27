@@ -17,6 +17,10 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 type Claims struct {
 	UserID   int64  `json:"user_id"`
 	Username string `json:"username"`

@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"backend/internal/middlewars"
+	"backend/internal/middlewares"
 	"backend/internal/models"
 	"backend/internal/store"
 	"encoding/json"
@@ -211,6 +211,49 @@ func Login(
 	})
 }
 
+func Logout(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	w.Header().Set("Content-Type", "application/json")
+
+	ctx := r.Context()
+
+	var req models.LogoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "Invalid request",
+		})
+		return
+	}
+
+	req.RefreshToken = strings.TrimSpace(req.RefreshToken)
+	if req.RefreshToken == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "Refresh token is required",
+		})
+		return
+	}
+
+	if _, err := store.DB.Exec(ctx,
+		`DELETE FROM refresh_tokens WHERE token_hash = $1`,
+		HashRefreshToken(req.RefreshToken),
+	); err != nil {
+		log.Println("[ERROR] logout delete:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "Internal server error",
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Logged out",
+	})
+}
+
 func Refresh(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -365,7 +408,7 @@ func Me(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	claims, ok := middlewars.GetClaims(r)
+	claims, ok := middlewares.GetClaims(r)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]any{
@@ -375,16 +418,24 @@ func Me(
 	}
 
 	var (
-		username  string
-		email     string
-		createdAt time.Time
+		username       string
+		email          string
+		avatarURL      string
+		bannerURL      string
+		createdAt      time.Time
+		postsCount     int64
+		followersCount int64
+		followingCount int64
 	)
 	err := store.DB.QueryRow(r.Context(),
-		`SELECT username, email, created_at
+		`SELECT username, email, avatar_url, banner_url, created_at,
+			(SELECT COUNT(*) FROM posts WHERE posts.user_id = users.id),
+			(SELECT COUNT(*) FROM follows WHERE follows.following_id = users.id),
+			(SELECT COUNT(*) FROM follows WHERE follows.follower_id = users.id)
 		 FROM users
 		 WHERE id = $1`,
 		claims.UserID,
-	).Scan(&username, &email, &createdAt)
+	).Scan(&username, &email, &avatarURL, &bannerURL, &createdAt, &postsCount, &followersCount, &followingCount)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -403,9 +454,14 @@ func Me(
 	}
 
 	json.NewEncoder(w).Encode(map[string]any{
-		"id":         claims.UserID,
-		"username":   username,
-		"email":      email,
-		"created_at": createdAt,
+		"id":              claims.UserID,
+		"username":        username,
+		"email":           email,
+		"avatar_url":      avatarURL,
+		"banner_url":      bannerURL,
+		"posts_count":     postsCount,
+		"followers_count": followersCount,
+		"following_count": followingCount,
+		"created_at":      createdAt,
 	})
 }
